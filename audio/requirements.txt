@@ -1,0 +1,2 @@
+edge-tts==6.1.12
+cos-python-sdk-v5==1.9.44
