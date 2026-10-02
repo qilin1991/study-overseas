@@ -1,0 +1,46 @@
+name: translate-overseas
+
+on:
+  schedule:
+    # 每天 6 次：UTC 2 / 6 / 10 / 14 / 18 / 22
+    - cron: '10 2,6,10,14,18,22 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '本轮最多翻译多少篇（0=不限）'
+        required: false
+        default: '0'
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Translate missing paragraphs
+        env:
+          TR_CONC: '4'
+          TR_LIMIT: ${{ github.event.inputs.limit || '0' }}
+        run: python translate_overseas.py
+
+      - name: Commit result
+        run: |
+          git config user.name  "study-translate-bot"
+          git config user.email "study-translate-bot@users.noreply.github.com"
+          if [ -n "$(git status --porcelain news_overseas.json)" ]; then
+            git add news_overseas.json
+            git commit -m "auto: translate $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+            git push
+          else
+            echo "无变更，跳过提交"
+          fi
