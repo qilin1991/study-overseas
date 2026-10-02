@@ -33,6 +33,9 @@ TR_SLEEP = float(os.environ.get('TR_SLEEP', '0.15'))   # 每次请求后停顿
 TR_ENGINE = os.environ.get('TR_ENGINE', 'auto')        # auto|google|mymemory
 
 GOOG = 'https://translate.googleapis.com/translate_a/single'
+# 实测（GitHub runner 海外网络）: client=at → 200 可用
+#   client=gtx → 429 限流; client=webapp → 403; translate.google.cn → 404
+GOOG_CLIENTS = ['at', 'gtx', 'webapp']
 MM = 'https://api.mymemory.translated.net/get'
 UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124.0 Safari/537.36')
@@ -93,33 +96,45 @@ class NetworkDead(Exception):
     pass
 
 
-# ---------- 引擎 1: Google 免费 ----------
+# ---------- 引擎 1: Google 免费（多 client 端点轮换） ----------
 def _google(text, sl='en', tl='zh-CN'):
     chunks = _split(text, TR_CHUNK)
     res = []
+    netfail = 0
     for ch in chunks:
-        url = (GOOG + '?client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&q='
-               + quote(ch, safe=''))
-        got, last, netfail = None, '', 0
-        for attempt in range(3):
-            try:
-                r = requests.get(url, headers={'User-Agent': UA}, timeout=(5, 15))
-                if r.status_code == 200:
-                    arr = r.json()
-                    got = ''.join(x[0] for x in arr[0] if x and x[0])
-                    break
-                last = 'HTTP %s' % r.status_code
-                # 429/403 = 被限流，不是网络问题
-                time.sleep(1.2 * (attempt + 1))
-            except (requests.ConnectionError, requests.Timeout) as e:
-                netfail += 1
-                last = str(e)[:80]
-                # 连续 2 次网络层失败 → 判定不可达，立即熔断
-                if netfail >= 2:
-                    raise NetworkDead('google unreachable: %s' % last)
-            except Exception as e:
-                last = str(e)[:80]
-                time.sleep(0.8 * (attempt + 1))
+        got, last = None, ''
+        for cli in GOOG_CLIENTS:
+            url = (GOOG + '?client=' + cli + '&sl=' + sl + '&tl=' + tl
+                   + '&dt=t&q=' + quote(ch, safe=''))
+            for attempt in range(2):
+                try:
+                    r = requests.get(url, headers={'User-Agent': UA},
+                                     timeout=(5, 15))
+                    if r.status_code == 200:
+                        try:
+                            arr = r.json()
+                            t = ''.join(x[0] for x in arr[0] if x and x[0])
+                        except Exception:
+                            t = ''
+                        if t:
+                            got = t
+                            break
+                        last = 'empty json'
+                    else:
+                        last = 'HTTP %s' % r.status_code
+                        if r.status_code in (403, 429):
+                            break     # 该 client 被限，换下一个 client
+                        time.sleep(0.5)
+                except (requests.ConnectionError, requests.Timeout) as e:
+                    netfail += 1
+                    last = str(e)[:60]
+                    if netfail >= 3:
+                        raise NetworkDead('google unreachable: %s' % last)
+                except Exception as e:
+                    last = str(e)[:60]
+                    time.sleep(0.4)
+            if got:
+                break
         if got is None:
             raise RuntimeError('google fail: %s' % last)
         res.append(got)
