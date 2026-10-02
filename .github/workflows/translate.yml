@@ -29,7 +29,7 @@ jobs:
 
       - name: Translate missing paragraphs
         env:
-          TR_CONC: '4'
+          TR_CONC: '8'
           TR_LIMIT: ${{ github.event.inputs.limit || '0' }}
         run: python translate_overseas.py
 
