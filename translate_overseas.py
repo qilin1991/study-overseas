@@ -27,7 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, 'news_overseas.json')
 
 TR_LIMIT = int(os.environ.get('TR_LIMIT', '0'))       # 0 = 不限
-TR_CONC = int(os.environ.get('TR_CONC', '4'))          # 并发
+TR_CONC = int(os.environ.get('TR_CONC', '8'))          # 并发（段落级）
 TR_CHUNK = int(os.environ.get('TR_CHUNK', '1200'))     # 单请求字符上限
 TR_SLEEP = float(os.environ.get('TR_SLEEP', '0.15'))   # 每次请求后停顿
 TR_ENGINE = os.environ.get('TR_ENGINE', 'auto')        # auto|google|mymemory
@@ -283,29 +283,37 @@ def main():
         return 1
     print('可用引擎: %s' % ','.join(alive))
 
-    def work(a):
+    # 段落级并发：把待译段落摊平后统一进线程池，才能真正跑满并发
+    tasks = []
+    for a in todo:
         for p in _need(a):
             p['en'] = (p.get('en') or '').strip()
-            t = translate(p['en'])
-            if t is None:
-                with _lock:
-                    _stat['fail'] += 1
-                continue
-            p['zh'] = t
-            with _lock:
-                _stat['ok'] += 1
+            tasks.append(p)
 
+    def work(p):
+        t = translate(p['en'])
+        if t is None:
+            with _lock:
+                _stat['fail'] += 1
+            return
+        p['zh'] = t
+        with _lock:
+            _stat['ok'] += 1
+
+    done = 0
     with ThreadPoolExecutor(max_workers=TR_CONC) as ex:
-        futs = {ex.submit(work, a): a for a in todo}
-        for i, f in enumerate(as_completed(futs), 1):
+        futs = {ex.submit(work, p): p for p in tasks}
+        for f in as_completed(futs):
+            done += 1
             try:
                 f.result()
             except Exception as e:
-                print('  单篇异常: %s' % e)
-            if i % 10 == 0:
-                print('  已处理 %d/%d 篇  ok=%d(g=%d,m=%d) fail=%d empty=%d'
-                      % (i, len(todo), _stat['ok'], _stat['g_ok'], _stat['m_ok'],
-                         _stat['fail'], _stat['empty']))
+                print('  单段异常: %s' % e)
+            with _lock:
+                ok, fl, g, m = _stat['ok'], _stat['fail'], _stat['g_ok'], _stat['m_ok']
+            if done % 50 == 0:
+                print('  已处理 %d/%d 段  ok=%d(g=%d,m=%d) fail=%d'
+                      % (done, len(tasks), ok, g, m, fl))
 
     print('结果: ok=%d (google=%d, mymemory=%d) fail=%d empty=%d'
           % (_stat['ok'], _stat['g_ok'], _stat['m_ok'], _stat['fail'], _stat['empty']))
