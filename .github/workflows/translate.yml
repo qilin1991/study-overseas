@@ -1,17 +1,21 @@
 name: translate-overseas
-# 免费翻译中转：在本 runner（海外网络）上调用 Google 免费翻译 + MyMemory 兜底，
-# 补全 news_overseas.json 中 paras[].zh 为空的段落，然后提交回仓库。
+# 免费翻译中转：在本 runner（海外网络）上调用 Google 免费翻译 + MyMemory 兜底。
+#
+# 两种数据源：
+#   ① pending.json        —— VPS 导出的真实待译队列（优先）。产出 pending_zh.json
+#   ② news_overseas.json  —— 仓库自身采集的文章。就地补 zh 后提交
+#
 # 每轮由「引擎配额熔断」自动停止（实测 Google 约 1100 段/轮、MyMemory 约 120 段/轮），
 # 因此不限量即可，跑满配额自然结束，无需人工干预。
 
 on:
   schedule:
-    # 每 2 小时一次（UTC 偶数点 :10），北京时间为 10/12/14/.../08 点
+    # 每 2 小时一次（UTC 偶数点 :10）
     - cron: '10 */2 * * *'
   workflow_dispatch:
     inputs:
       limit:
-        description: '本轮最多翻译多少篇（0=不限）'
+        description: '本轮最多翻译多少（pending 模式按段、news 模式按篇；0=不限）'
         required: false
         default: '0'
 
@@ -31,7 +35,7 @@ jobs:
       - name: Install deps
         run: pip install requests
 
-      - name: Translate missing paragraphs
+      - name: Translate (pending first, else news)
         env:
           TR_CONC: '6'
           TR_LIMIT: ${{ github.event.inputs.limit || '0' }}
@@ -41,9 +45,15 @@ jobs:
         run: |
           git config user.name  "study-translate-bot"
           git config user.email "study-translate-bot@users.noreply.github.com"
-          if [ -n "$(git status --porcelain news_overseas.json)" ]; then
-            git add news_overseas.json
-            git commit -m "auto: translate $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+          CHANGED=""
+          for f in pending_zh.json news_overseas.json; do
+            if [ -f "$f" ] && [ -n "$(git status --porcelain "$f")" ]; then
+              git add "$f"
+              CHANGED="$CHANGED $f"
+            fi
+          done
+          if [ -n "$CHANGED" ]; then
+            git commit -m "auto: translate $(date -u +%Y-%m-%dT%H:%MZ) [$CHANGED] [skip ci]"
             git push
           else
             echo "无变更，跳过提交"
