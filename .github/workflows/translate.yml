@@ -1,4 +1,8 @@
 name: translate-overseas
+# 免费翻译中转：在本 runner（海外网络）上调用 Google 免费翻译 + MyMemory 兜底，
+# 补全 news_overseas.json 中 paras[].zh 为空的段落，然后提交回仓库。
+# 每轮由「引擎配额熔断」自动停止（实测 Google 约 1100 段/轮、MyMemory 约 120 段/轮），
+# 因此不限量即可，跑满配额自然结束，无需人工干预。
 
 on:
   schedule:
@@ -30,7 +34,7 @@ jobs:
       - name: Translate missing paragraphs
         env:
           TR_CONC: '6'
-          TR_LIMIT: ${{ github.event.inputs.limit || '100' }}
+          TR_LIMIT: ${{ github.event.inputs.limit || '0' }}
         run: python translate_overseas.py
 
       - name: Commit result
