@@ -2,8 +2,8 @@ name: translate-overseas
 
 on:
   schedule:
-    # 每天 6 次：UTC 2 / 6 / 10 / 14 / 18 / 22（北京 10/14/18/22/02/06 点）
-    - cron: '10 2,6,10,14,18,22 * * *'
+    # 每 2 小时一次（UTC 偶数点 :10），北京时间为 10/12/14/.../08 点
+    - cron: '10 */2 * * *'
   workflow_dispatch:
     inputs:
       limit:
@@ -14,7 +14,7 @@ on:
 jobs:
   translate:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 90
     permissions:
       contents: write
     steps:
@@ -29,8 +29,8 @@ jobs:
 
       - name: Translate missing paragraphs
         env:
-          TR_CONC: '8'
-          TR_LIMIT: ${{ github.event.inputs.limit || '150' }}
+          TR_CONC: '6'
+          TR_LIMIT: ${{ github.event.inputs.limit || '100' }}
         run: python translate_overseas.py
 
       - name: Commit result
