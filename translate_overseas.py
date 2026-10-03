@@ -204,6 +204,16 @@ def _probe():
     return ok
 
 
+# 引擎因「非网络类」失败（限流/配额）连续多少次后熔断
+QUOTA_FAIL_LIMIT = int(os.environ.get('TR_QUOTA_FAIL', '20'))
+
+
+def _all_dead():
+    """所有候选引擎是否都不可用了。"""
+    order = ['google', 'mymemory'] if TR_ENGINE == 'auto' else [TR_ENGINE]
+    return all(n in _engine_dead for n in order)
+
+
 def translate(text):
     """按优先级尝试各引擎。全部失败返回 None。"""
     if not text or not text.strip():
@@ -224,10 +234,18 @@ def translate(text):
             with _lock:
                 if name not in _engine_dead:
                     _engine_dead.add(name)
-                    print('  [!] %s → 停用 (%s)' % (name, str(e)[:60]))
-        except Exception:
-            # 单段失败（限流/空译），继续尝试下一引擎，不熔断
-            pass
+                    print('  [!] %s → 停用，网络不可达 (%s)' % (name, str(e)[:60]))
+        except Exception as e:
+            # 限流/配额类失败：累计到阈值也熔断，避免空跑
+            with _lock:
+                c = _stat.get('_ec_' + name, 0) + 1
+                _stat['_ec_' + name] = c
+                hit = c >= QUOTA_FAIL_LIMIT and name not in _engine_dead
+                if hit:
+                    _engine_dead.add(name)
+            if hit:
+                print('  [!] %s → 停用，连续失败 %d 次 (%s)'
+                      % (name, QUOTA_FAIL_LIMIT, str(e)[:60]))
     return None
 
 
@@ -291,6 +309,10 @@ def main():
             tasks.append(p)
 
     def work(p):
+        if _all_dead():
+            with _lock:
+                _stat['fail'] += 1
+            return
         t = translate(p['en'])
         if t is None:
             with _lock:
@@ -301,6 +323,7 @@ def main():
             _stat['ok'] += 1
 
     done = 0
+    stopped = False
     with ThreadPoolExecutor(max_workers=TR_CONC) as ex:
         futs = {ex.submit(work, p): p for p in tasks}
         for f in as_completed(futs):
@@ -311,9 +334,17 @@ def main():
                 print('  单段异常: %s' % e)
             with _lock:
                 ok, fl, g, m = _stat['ok'], _stat['fail'], _stat['g_ok'], _stat['m_ok']
+                all_dead = _all_dead()
             if done % 50 == 0:
                 print('  已处理 %d/%d 段  ok=%d(g=%d,m=%d) fail=%d'
                       % (done, len(tasks), ok, g, m, fl))
+            if all_dead and not stopped:
+                stopped = True
+                print('  [!] 所有引擎配额耗尽，取消剩余 %d 段'
+                      % (len(tasks) - done))
+                for x in futs:
+                    x.cancel()
+                break
 
     print('结果: ok=%d (google=%d, mymemory=%d) fail=%d empty=%d'
           % (_stat['ok'], _stat['g_ok'], _stat['m_ok'], _stat['fail'], _stat['empty']))
