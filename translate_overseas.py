@@ -264,7 +264,135 @@ def _need(a):
     return out
 
 
+PENDING_IN = os.path.join(HERE, 'pending.json')
+PENDING_OUT = os.path.join(HERE, 'pending_zh.json')
+
+
+def _run_tasks(tasks, label):
+    """并发翻译 tasks（每项是 dict，含 'en'，翻好后写 'zh'）。返回是否全部引擎已熔断。"""
+    def work(p):
+        if _all_dead():
+            with _lock:
+                _stat['fail'] += 1
+            return
+        t = translate(p['en'])
+        if t is None:
+            with _lock:
+                _stat['fail'] += 1
+            return
+        p['zh'] = t
+        with _lock:
+            _stat['ok'] += 1
+
+    done = 0
+    stopped = False
+    with ThreadPoolExecutor(max_workers=TR_CONC) as ex:
+        futs = {ex.submit(work, p): p for p in tasks}
+        for f in as_completed(futs):
+            done += 1
+            try:
+                f.result()
+            except Exception as e:
+                print('  单段异常: %s' % e)
+            with _lock:
+                ok, fl, g, m = _stat['ok'], _stat['fail'], _stat['g_ok'], _stat['m_ok']
+                all_dead = _all_dead()
+            if done % 50 == 0:
+                print('  已处理 %d/%d %s  ok=%d(g=%d,m=%d) fail=%d'
+                      % (done, len(tasks), label, ok, g, m, fl))
+            if all_dead and not stopped:
+                stopped = True
+                print('  [!] 所有引擎配额耗尽，取消剩余 %d 段' % (len(tasks) - done))
+                for x in futs:
+                    x.cancel()
+                break
+    return stopped
+
+
+def main_pending():
+    """优先模式：翻译 VPS 导出的 pending.json（VPS 的真实缺口）。
+
+    产出 pending_zh.json: {"map": {"<key>": "<译文>"}, "updated": "..."}
+    VPS 侧再拉取按 key 回填。
+    """
+    if not os.path.exists(PENDING_IN):
+        return None            # 无 pending，交回 main() 走 news 模式
+    try:
+        d = json.load(open(PENDING_IN, encoding='utf-8'))
+    except Exception as e:
+        print('pending.json 解析失败: %s' % e)
+        return None
+    items = d.get('items') or []
+    if not items:
+        print('pending.json 为空（VPS 无待译内容）')
+        return 0
+
+    print('=== pending 模式：VPS 待译 %d 段 ===' % len(items))
+    total = len(items)
+    if TR_LIMIT:
+        # TR_LIMIT 在 pending 模式下按「段」计
+        items = items[:TR_LIMIT]
+        print('本轮限制 %d 段' % len(items))
+
+    print('探测引擎可用性...')
+    alive = _probe()
+    if not alive:
+        print('所有引擎均不可用，退出（不写盘）')
+        return 1
+    print('可用引擎: %s' % ','.join(alive))
+
+    tasks = []
+    for it in items:
+        en = (it.get('en') or '').strip()
+        k = it.get('k')
+        if en and k:
+            tasks.append({'k': k, 'en': en})
+    if not tasks:
+        print('无有效条目')
+        return 0
+
+    _run_tasks(tasks, '段(pending)')
+    print('结果: ok=%d (google=%d, mymemory=%d) fail=%d'
+          % (_stat['ok'], _stat['g_ok'], _stat['m_ok'], _stat['fail']))
+    if _stat['ok'] == 0:
+        print('本轮无有效译文，不写盘')
+        return 1
+
+    # 合并已有 pending_zh.json（多轮累积，避免互相覆盖）
+    out = {'map': {}, 'updated': ''}
+    if os.path.exists(PENDING_OUT):
+        try:
+            out = json.load(open(PENDING_OUT, encoding='utf-8'))
+            out.setdefault('map', {})
+        except Exception:
+            out = {'map': {}, 'updated': ''}
+    added = 0
+    for p in tasks:
+        z = (p.get('zh') or '').strip()
+        if z and out['map'].get(p['k']) != z:
+            out['map'][p['k']] = z
+            added += 1
+    out['updated'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+    tmp = PENDING_OUT + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(out, f, ensure_ascii=False)
+    os.replace(tmp, PENDING_OUT)
+    print('已写入 %s（新增 %d 条，累计 %d 条）'
+          % (PENDING_OUT, added, len(out['map'])))
+    return 0
+
+
 def main():
+    # ① 有 VPS 导出的待译队列时，优先处理它（覆盖真实缺口）
+    r = main_pending()
+    if r is not None:
+        return r
+
+    # ② 否则处理仓库里 news_overseas.json 的缺口
+    return main_news()
+
+
+def main_news():
     if not os.path.exists(DATA):
         print('缺 %s' % DATA)
         return 1
@@ -308,43 +436,7 @@ def main():
             p['en'] = (p.get('en') or '').strip()
             tasks.append(p)
 
-    def work(p):
-        if _all_dead():
-            with _lock:
-                _stat['fail'] += 1
-            return
-        t = translate(p['en'])
-        if t is None:
-            with _lock:
-                _stat['fail'] += 1
-            return
-        p['zh'] = t
-        with _lock:
-            _stat['ok'] += 1
-
-    done = 0
-    stopped = False
-    with ThreadPoolExecutor(max_workers=TR_CONC) as ex:
-        futs = {ex.submit(work, p): p for p in tasks}
-        for f in as_completed(futs):
-            done += 1
-            try:
-                f.result()
-            except Exception as e:
-                print('  单段异常: %s' % e)
-            with _lock:
-                ok, fl, g, m = _stat['ok'], _stat['fail'], _stat['g_ok'], _stat['m_ok']
-                all_dead = _all_dead()
-            if done % 50 == 0:
-                print('  已处理 %d/%d 段  ok=%d(g=%d,m=%d) fail=%d'
-                      % (done, len(tasks), ok, g, m, fl))
-            if all_dead and not stopped:
-                stopped = True
-                print('  [!] 所有引擎配额耗尽，取消剩余 %d 段'
-                      % (len(tasks) - done))
-                for x in futs:
-                    x.cancel()
-                break
+    _run_tasks(tasks, '段(news)')
 
     print('结果: ok=%d (google=%d, mymemory=%d) fail=%d empty=%d'
           % (_stat['ok'], _stat['g_ok'], _stat['m_ok'], _stat['fail'], _stat['empty']))
