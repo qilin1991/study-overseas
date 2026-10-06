@@ -1,0 +1,41 @@
+name: fetch-imgs-relay
+# 图片抓取回传 VPS 中转：海外 runner 抓图 -> SCP 回 VPS ~/staging_imgs -> VPS 上传 COS + 写 news.json。
+# COS 凭证只留在 VPS（relay 方案），本 workflow 不持有任何 COS 密钥。
+#
+# 触发：VPS 端 trigger_github_imgs.py 调用 GitHub API 派发，inputs.payload 为 JSON 字符串 [{id,url}, ...]。
+#       也可在 Actions 页面手动 Run workflow，粘贴 payload。
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: 'JSON 字符串：[{id, url}, ...]'
+        required: true
+        default: '[]'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Write relay SSH key
+        run: |
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > /tmp/relay_key
+          chmod 600 /tmp/relay_key
+
+      - name: Fetch & relay to VPS
+        env:
+          INPUT_PAYLOAD: ${{ github.event.inputs.payload }}
+          RELAY_KEY: /tmp/relay_key
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: python scripts/fetch_imgs_runner.py
