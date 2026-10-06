@@ -1,0 +1,109 @@
+{
+ "generated": "2026-10-06T07:07:09Z",
+ "results": [
+  {
+   "id": "ft-c13f9f08-2cb6-4605-893a-fd2199e4bc44",
+   "src_url": "https://www.ft.com/content/c13f9f08-2cb6-4605-893a-fd2199e4bc44",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2Fc76c7614-f5d6-409e-aed9-117441284880.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_trial.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 133178,
+   "img_ok": true
+  },
+  {
+   "id": "ft-8869caf9-3cd1-4300-aeb3-828a4d9da4f9",
+   "src_url": "https://www.ft.com/content/8869caf9-3cd1-4300-aeb3-828a4d9da4f9?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2Fa6282226-1c3f-4f0c-8669-42c35b0f05b9.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_ftedit.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 86669,
+   "img_ok": true
+  },
+  {
+   "id": "ft-c8407fb6-6134-4b2c-a428-d3a998873383",
+   "src_url": "https://www.ft.com/content/c8407fb6-6134-4b2c-a428-d3a998873383",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2Fb8b93cef-1398-42a5-b0b7-1e52de46489c.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_trial.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 36983,
+   "img_ok": true
+  },
+  {
+   "id": "ft-b8924d77-364b-46c1-b783-5db73a91f351",
+   "src_url": "https://www.ft.com/content/b8924d77-364b-46c1-b783-5db73a91f351?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2Fa951a123-a475-45c7-a7e4-505547aa536b.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_trial.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 149200,
+   "img_ok": true
+  },
+  {
+   "id": "ft-471ee22e-af95-4ada-a272-a6a876bc5234",
+   "src_url": "https://www.ft.com/content/471ee22e-af95-4ada-a272-a6a876bc5234?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2Fc5c5a78d-76ca-477e-88a9-45be93fbe4dc.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_ftedit.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 33786,
+   "img_ok": true
+  },
+  {
+   "id": "ft-de27e183-c8ab-4098-946b-7c1faf5a3d8a",
+   "src_url": "https://www.ft.com/content/de27e183-c8ab-4098-946b-7c1faf5a3d8a?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2F9bfc51c1-7a35-4e34-846b-05de20fdb5b3.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_ftedit.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 78947,
+   "img_ok": true
+  },
+  {
+   "id": "ft-a2711e64-145b-4df6-baf7-56a3da7ed0b0",
+   "src_url": "https://www.ft.com/content/a2711e64-145b-4df6-baf7-56a3da7ed0b0?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2F519c321f-9147-4774-b9cf-cb8f756d66ec.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_trial.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 78547,
+   "img_ok": true
+  },
+  {
+   "id": "ft-3302fd5c-8b92-425b-9523-673b2565bb10",
+   "src_url": "https://www.ft.com/content/3302fd5c-8b92-425b-9523-673b2565bb10?syn-25a6b1a6=1",
+   "page_status": 200,
+   "og_candidates": [
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2F11bbeef8-6387-4177-a1ee-9154203c16a1.jpg?source=next-barrier-page&amp;fit=scale-down&amp;quality=highest&amp;width=700&amp;dpr=1",
+    "https://images.ft.com/v3/image/raw/https%3A%2F%2Fbarrier-page-components.s3.eu-west-1.amazonaws.com%2Fassets%2Ficons%2Fprimary_product_icon_trial.svg?format=svg&amp;source=next-barrier-page"
+   ],
+   "img_status": 200,
+   "img_type": "image/jpeg",
+   "img_bytes": 94073,
+   "img_ok": true
+  }
+ ]
+}
