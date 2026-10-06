@@ -2,7 +2,8 @@ name: fetch-imgs-relay
 # 图片抓取回传 VPS 中转：海外 runner 抓图 -> SCP 回 VPS ~/staging_imgs -> VPS 上传 COS + 写 news.json。
 # COS 凭证只留在 VPS（relay 方案），本 workflow 不持有任何 COS 密钥。
 #
-# 触发：VPS 端 trigger_github_imgs.py 调用 GitHub API 派发，inputs.payload 为 JSON 字符串 [{id,url}, ...]。
+# 触发：VPS 端 trigger_github_imgs.py / backfill_relay.py 调用 GitHub API 派发，
+#       inputs.payload 为 JSON 字符串 [{id,url}, ...]。
 #       也可在 Actions 页面手动 Run workflow，粘贴 payload。
 
 on:
@@ -12,6 +13,11 @@ on:
         description: 'JSON 字符串：[{id, url}, ...]'
         required: true
         default: '[]'
+
+# 串行队列：多批回填依次执行，避免并行 SCP/ingest 互踩 staging 与 news.json
+concurrency:
+  group: fetch-imgs-relay
+  cancel-in-progress: false
 
 jobs:
   fetch:
