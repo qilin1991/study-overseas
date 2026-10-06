@@ -163,8 +163,13 @@ def main():
                          check=True, capture_output=True, text=True)
     print('SCP 完成')
     # 3) 拷入 archive 属主 staging 并触发摄入
-    ssh_exec('sudo cp -r ~/staging_imgs/. /opt/study/staging_imgs/ && '
+    # 注意：sudo cp 会生成 root 属主文件，archive 用户无法 rmtree 清理，
+    # 因此复制后先 chown 回 archive，摄入结束再 sudo rm 干净，避免残留。
+    ssh_exec('sudo rm -rf /opt/study/staging_imgs && '
+             'sudo cp -r ~/staging_imgs/. /opt/study/staging_imgs/ && '
+             'sudo chown -R archive:archive /opt/study/staging_imgs && '
              'sudo -u archive /opt/study/venv/bin/python /opt/study/ingest_staged.py && '
+             'sudo rm -rf /opt/study/staging_imgs && '
              'rm -rf ~/staging_imgs')
     print('VPS 摄入完成')
 
