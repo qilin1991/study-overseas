@@ -1,0 +1,33 @@
+name: test-imgfetch
+# 可行性探测：用海外 runner 实测能否抓到「国内 VPS 抓不到」的源站头图。
+# 读取 pending_imgs.json（VPS 导出），结果写 pending_imgs_test.json 并 push 回仓库。
+# 不涉及任何 COS 密钥，public repo 安全。
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests
+      - name: Probe image fetch
+        run: python collect_imgs_test.py
+      - name: Commit result
+        run: |
+          git config user.name  "img-test-bot"
+          git config user.email "img-test-bot@users.noreply.github.com"
+          if [ -f pending_imgs_test.json ] && [ -n "$(git status --porcelain pending_imgs_test.json)" ]; then
+            git add pending_imgs_test.json
+            git commit -m "auto: imgfetch probe [skip ci]"
+            git push
+          else
+            echo "无变更，跳过提交"
+          fi
