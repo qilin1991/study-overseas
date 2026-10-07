@@ -90,6 +90,18 @@ SOURCES = [
      'feed': 'https://www.billboard.com/feed/'},
     {'key': 'medicalnewstoday', 'name': 'Medical News Today', 'cat': '健康',
      'feed': 'https://www.medicalnewstoday.com/newsfeeds/rss/medical.xml'},
+    {'key': 'nyt', 'name': 'The New York Times', 'cat': '时政',
+     'feed': 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'},
+    {'key': 'reuters', 'name': 'Reuters', 'cat': '时政',
+     'feed': 'https://www.reutersagency.com/feed/'},
+    {'key': 'theatlantic', 'name': 'The Atlantic', 'cat': '时政',
+     'feed': 'https://www.theatlantic.com/feed/all/'},
+    {'key': 'politico', 'name': 'Politico', 'cat': '时政',
+     'feed': 'https://www.politico.com/rss/politicopicks.xml'},
+    {'key': 'smithsonian', 'name': 'Smithsonian', 'cat': '科学',
+     'feed': 'https://www.smithsonianmag.com/rss/smithsonian/'},
+    {'key': 'natgeo', 'name': 'National Geographic', 'cat': '科学',
+     'feed': 'https://www.nationalgeographic.com/index.rss'},
 ]
 
 NOISE = ['sign up', 'subscribe', 'newsletter', 'cookie', 'privacy policy',
