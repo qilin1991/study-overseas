@@ -105,13 +105,13 @@ SOURCES = [
 
     # ── 摩擦 / 制动行业（cat=摩擦）：复用 friction 信源普查已验证 Azure 可达的站点，配 RSS ──
     {'key': 'sae',            'name': 'SAE International',  'cat': '摩擦',
-     'feed': 'https://www.sae.org/rss/news'},
+     'feeds': ['https://www.sae.org/rss/news','https://www.sae.org/news/rss','https://www.sae.org/magazine/rss']},
     {'key': 'counterman',     'name': 'Counterman',         'cat': '摩擦',
      'feed': 'https://www.counterman.com/feed/'},
     {'key': 'aftermarketnews','name': 'Aftermarket News',   'cat': '摩擦',
      'feed': 'https://www.aftermarketnews.com/feed/'},
     {'key': 'fleetowner',     'name': 'Fleet Owner',        'cat': '摩擦',
-     'feed': 'https://www.fleetowner.com/feed/'},
+     'feeds': ['https://www.fleetowner.com/feed/','https://www.fleetowner.com/rss.xml','https://feeds.feedburner.com/fleetowner']},
     {'key': 'underhood',      'name': 'Underhood Service',  'cat': '摩擦',
      'feed': 'https://www.underhoodservice.com/feed/'},
     {'key': 'brake_frontend', 'name': 'Brake & Front End',  'cat': '摩擦',
@@ -119,7 +119,7 @@ SOURCES = [
     {'key': 'importcar',      'name': 'ImportCar',          'cat': '摩擦',
      'feed': 'https://www.import-car.com/feed/'},
     {'key': 'ratchet',        'name': 'Ratchet+Wrench',     'cat': '摩擦',
-     'feed': 'https://www.ratchetandwrench.com/feed/'},
+     'feeds': ['https://www.ratchetandwrench.com/feed/','https://www.ratchetandwrench.com/rss/']},
     {'key': 'tomorrowtech',   'name': "Tomorrow's Technician", 'cat': '摩擦',
      'feed': 'https://www.tomorrowstechnician.com/feed/'},
     {'key': 'rdn',            'name': 'Repairer Driven News', 'cat': '摩擦',
@@ -266,12 +266,24 @@ def main():
     existing_urls = {norm_url(a.get('url')) for a in data['articles'] if a.get('url')}
     added = 0
     for src in SOURCES:
-        try:
-            r = requests.get(src['feed'], headers=UA, timeout=25)
-            r.raise_for_status()
-            feed = feedparse(r.content)
-        except Exception as e:
-            print('FEED_FAIL', src['key'], type(e).__name__, flush=True)
+        candidates = src.get('feeds') or [src.get('feed')]
+        feed = None
+        last_err = ''
+        for cand in candidates:
+            if not cand:
+                continue
+            try:
+                r = requests.get(cand, headers=UA, timeout=25)
+                r.raise_for_status()
+                f = feedparse(r.content)
+                if f and (f.entries or getattr(f, 'bozo', 1) == 0 or f.get('entries')):
+                    feed = f
+                    break
+            except Exception as e:
+                last_err = type(e).__name__
+                continue
+        if feed is None:
+            print('FEED_FAIL', src['key'], last_err or 'empty', flush=True)
             continue
         entries = list(feed.entries)[:30]
         entries.sort(key=lambda e: (e.get('published_parsed') or e.get('updated_parsed')
