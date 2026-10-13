@@ -12,6 +12,7 @@ import os
 import re
 import json
 import html
+from html import unescape as _unescape
 import time
 import random
 import datetime
@@ -134,6 +135,12 @@ SOURCES = [
      'feed': 'https://www.automotiveworld.com/feed/'},
     {'key': 'tyrepress',      'name': 'Tyrepress',          'cat': '摩擦',
      'feed': 'https://www.tyrepress.com/feed/'},
+
+
+    # ── Carlisle CBF 官网（无 RSS，列表页爬取）──
+    {'key': 'carlisle', 'name': 'Carlisle CBF', 'cat': '摩擦',
+     'scrape': True, 'list_url': 'https://carlislecbf.com/news-events',
+     'link_re': r'href="(/news-events/[^"]+)"', 'list_path': '/news-events'},
 ]
 
 NOISE = ['sign up', 'subscribe', 'newsletter', 'cookie', 'privacy policy',
@@ -224,26 +231,12 @@ def norm_url(u):
     return re.sub(r'^www\.', '', u, flags=re.I)
 
 
-def fetch_body(url):
+def _get_html(url):
     for attempt in range(2):
         try:
             r = requests.get(url, headers=UA, timeout=25)
             if r.status_code == 200:
-                text = trafilatura.extract(r.text, include_comments=False,
-                                           favor_precision=True, include_tables=False)
-                if text:
-                    blocks = (text.split('\n') if text.count('\n\n') == 0
-                              else re.split(r'\n\s*\n', text))
-                    paras = []
-                    for b in blocks:
-                        p = re.sub(r'\s+', ' ', html.unescape(b)).strip()
-                        if len(p) < 40:
-                            continue
-                        if any(k in p.lower() for k in NOISE):
-                            continue
-                        paras.append(p)
-                    if paras:
-                        return paras
+                return r.text
             return None
         except Exception as e:
             if attempt == 0:
@@ -252,6 +245,97 @@ def fetch_body(url):
             print('  BODY_FAIL', url, type(e).__name__)
             return None
     return None
+
+
+def _text_to_paras(text):
+    if not text:
+        return None
+    blocks = (text.split('\n') if text.count('\n\n') == 0
+              else re.split(r'\n\s*\n', text))
+    paras = []
+    for b in blocks:
+        q = re.sub(r'\s+', ' ', html.unescape(b)).strip()
+        if len(q) < 40:
+            continue
+        if any(k in q.lower() for k in NOISE):
+            continue
+        paras.append(q)
+    return paras or None
+
+
+def _extract_title_date(html):
+    """标题/日期：优先 trafilatura metadata（兼容新旧版本），再 <title>/meta 兜底。"""
+    title = ''
+    date = ''
+    try:
+        md = trafilatura.extract(html, include_comments=False,
+                                favor_precision=True, include_tables=False,
+                                with_metadata=True)
+        if md is not None and not isinstance(md, str):
+            title = (getattr(md, 'title', '') or '')
+            date = (getattr(md, 'date', '') or '')
+    except Exception:
+        pass
+    if not title:
+        # og:title 通常是文章真标题（部分站点 <title> 只含站名）
+        m = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)', html, re.I)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:title', html, re.I)
+        if m:
+            title = _unescape(re.sub(r'\s+', ' ', m.group(1))).strip()
+    if not title:
+        m = re.search(r'<title[^>]*>\s*(.*?)\s*</title>', html, re.I | re.S)
+        if m:
+            title = _unescape(re.sub(r'\s+', ' ', m.group(1))).strip()
+    if not date:
+        m = re.search(r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)',
+                      html, re.I)
+        if m:
+            date = m.group(1)[:10]
+    return title.strip(), date.strip()
+
+
+def fetch_article(url):
+    """返回 (title, paras, date)。title/date 可能为空。"""
+    html = _get_html(url)
+    if not html:
+        return None, None, ''
+    text = trafilatura.extract(html, include_comments=False,
+                               favor_precision=True, include_tables=False)
+    paras = _text_to_paras(text)
+    if not paras:
+        return None, None, ''
+    title, date = _extract_title_date(html)
+    return (title or None), paras, date
+
+
+def fetch_body(url):
+    return fetch_article(url)[1]
+
+
+def scrape_list(src):
+    """列表页爬取：从 list_url 抽取文章链接（无 RSS 的站点用）。"""
+    import re as _re
+    try:
+        r = requests.get(src['list_url'], headers=UA, timeout=30)
+        r.raise_for_status()
+    except Exception as e:
+        print('  LIST_FAIL', src['key'], type(e).__name__)
+        return []
+    h = r.text
+    base = _re.match(r'https?://[^/]+', src['list_url']).group(0)
+    pat = src.get('link_re') or r'href="(/news-events/[^"]+)"'
+    skip = {src.get('list_path', '/news-events').rstrip('/')}
+    out, seen = [], set()
+    for m in _re.findall(pat, h):
+        if m.rstrip('/') in skip:
+            continue
+        url = m if m.startswith('http') else base + m
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append({'link': url, 'title': '', 'date': ''})
+    return out
 
 
 def main():
@@ -266,51 +350,65 @@ def main():
     existing_urls = {norm_url(a.get('url')) for a in data['articles'] if a.get('url')}
     added = 0
     for src in SOURCES:
-        candidates = src.get('feeds') or [src.get('feed')]
-        feed = None
-        last_err = ''
-        for cand in candidates:
-            if not cand:
+        if src.get('scrape'):
+            entries = scrape_list(src)
+            if not entries:
+                print('SCRAPE_FAIL', src['key'], flush=True)
                 continue
-            try:
-                r = requests.get(cand, headers=UA, timeout=25)
-                r.raise_for_status()
-                f = feedparse(r.content)
-                if f and (f.entries or getattr(f, 'bozo', 1) == 0 or f.get('entries')):
-                    feed = f
-                    break
-            except Exception as e:
-                last_err = type(e).__name__
+        else:
+            candidates = src.get('feeds') or [src.get('feed')]
+            feed = None
+            last_err = ''
+            for cand in candidates:
+                if not cand:
+                    continue
+                try:
+                    r = requests.get(cand, headers=UA, timeout=25)
+                    r.raise_for_status()
+                    f = feedparse(r.content)
+                    if f and (f.entries or getattr(f, 'bozo', 1) == 0 or f.get('entries')):
+                        feed = f
+                        break
+                except Exception as e:
+                    last_err = type(e).__name__
+                    continue
+            if feed is None:
+                print('FEED_FAIL', src['key'], last_err or 'empty', flush=True)
                 continue
-        if feed is None:
-            print('FEED_FAIL', src['key'], last_err or 'empty', flush=True)
-            continue
-        entries = list(feed.entries)[:30]
-        entries.sort(key=lambda e: (e.get('published_parsed') or e.get('updated_parsed')
-                                    or time.gmtime(0)), reverse=True)
+            entries = list(feed.entries)[:30]
+            entries.sort(key=lambda e: (e.get('published_parsed') or e.get('updated_parsed')
+                                        or time.gmtime(0)), reverse=True)
         got = 0
         for e in entries:
-            link = (e.get('link') or '').strip()
+            link = (e.get('link') or e.get('url') or '').strip()
             if not link:
                 continue
             sid = src['key'] + '-' + slug_of(link)
             if sid in existing or norm_url(link) in existing_urls:
                 continue
-            title = (e.get('title') or '').strip()
+            if src.get('scrape'):
+                title, paras, meta_date = fetch_article(link)
+                title = (title or '').strip()
+            else:
+                title = (e.get('title') or '').strip()
+                if not title:
+                    continue
+                paras = fetch_body(link)
+                meta_date = ''
             if not title:
                 continue
-            paras = fetch_body(link)
             if not paras or len(paras) < 3:
                 continue
             zh = free_translate_paras(paras)
-            date_s = ''
-            if e.get('published_parsed'):
-                date_s = datetime.datetime(*e['published_parsed'][:6]).strftime('%Y-%m-%d')
-            elif e.get('published'):
-                try:
-                    date_s = email.utils.parsedate_to_datetime(e['published']).strftime('%Y-%m-%d')
-                except Exception:
-                    date_s = (e.get('published') or '')[:10]
+            date_s = (e.get('date') or '') or meta_date
+            if not date_s:
+                if e.get('published_parsed'):
+                    date_s = datetime.datetime(*e['published_parsed'][:6]).strftime('%Y-%m-%d')
+                elif e.get('published'):
+                    try:
+                        date_s = email.utils.parsedate_to_datetime(e['published']).strftime('%Y-%m-%d')
+                    except Exception:
+                        date_s = (e.get('published') or '')[:10]
             art = {
                 'id': sid, 'source': src['key'], 'source_name': src['name'],
                 'cat': src['cat'], 'date': date_s, 'title': title, 'url': link,
