@@ -1,0 +1,25 @@
+name: tts-probe
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install edge-tts==7.2.8
+      - name: probe edge-tts from GitHub runner
+        run: |
+          python - <<'PY'
+          import asyncio, edge_tts
+          async def t():
+              for v in ["en-US-AriaNeural","en-US-GuyNeural"]:
+                  try:
+                      c = edge_tts.Communicate("Hello, this is a test of text to speech.", v)
+                      buf = bytearray()
+                      async for ch in c.stream():
+                          if ch["type"] == "audio": buf.extend(ch["data"])
+                      print("OK", v, len(buf), "bytes")
+                  except Exception as e:
+                      print("FAIL", v, type(e).__name__, str(e)[:160])
+          asyncio.run(t())
