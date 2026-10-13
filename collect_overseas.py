@@ -140,7 +140,8 @@ SOURCES = [
     # ── Carlisle CBF 官网（无 RSS，列表页爬取）──
     {'key': 'carlisle', 'name': 'Carlisle CBF', 'cat': '摩擦',
      'scrape': True, 'list_url': 'https://carlislecbf.com/news-events',
-     'link_re': r'href="(/news-events/[^"]+)"', 'list_path': '/news-events'},
+     'link_re': r'href="(/news-events/[^"]+)"', 'list_path': '/news-events',
+     'date_map_url': 'https://carlislecbf.com/sitemap.xml'},
 ]
 
 NOISE = ['sign up', 'subscribe', 'newsletter', 'cookie', 'privacy policy',
@@ -326,6 +327,22 @@ def scrape_list(src):
     base = _re.match(r'https?://[^/]+', src['list_url']).group(0)
     pat = src.get('link_re') or r'href="(/news-events/[^"]+)"'
     skip = {src.get('list_path', '/news-events').rstrip('/')}
+
+    # 日期来源：站点 sitemap.xml 的 <lastmod>（列表页只有 "Sep 09" 无年份）
+    dates = {}
+    dm = src.get('date_map_url')
+    if dm:
+        try:
+            sr = requests.get(dm, headers=UA, timeout=30)
+            for b in _re.findall(r'<url>(.*?)</url>', sr.text, _re.S):
+                lo = _re.search(r'<loc>([^<]+)</loc>', b)
+                lm = _re.search(r'<lastmod>([^<]+)</lastmod>', b)
+                if lo and lm and src.get('list_path', '') in lo.group(1):
+                    dates[lo.group(1).rstrip('/').split('/')[-1]] = lm.group(1)[:10]
+            print('  DATE_MAP', src['key'], len(dates), flush=True)
+        except Exception as e:
+            print('  DATE_MAP_FAIL', src['key'], type(e).__name__, flush=True)
+
     out, seen = [], set()
     for m in _re.findall(pat, h):
         if m.rstrip('/') in skip:
@@ -334,7 +351,8 @@ def scrape_list(src):
         if url in seen:
             continue
         seen.add(url)
-        out.append({'link': url, 'title': '', 'date': ''})
+        slug = url.rstrip('/').split('/')[-1]
+        out.append({'link': url, 'title': '', 'date': dates.get(slug, '')})
     return out
 
 
@@ -348,6 +366,33 @@ def main():
             data = {'articles': []}
     existing = {a.get('id') for a in data['articles']}
     existing_urls = {norm_url(a.get('url')) for a in data['articles'] if a.get('url')}
+
+    # ── 回填：scrape 源历史条目缺 date（列表页无日期，用 sitemap lastmod 补）──
+    for src in SOURCES:
+        if not src.get('date_map_url'):
+            continue
+        try:
+            sr = requests.get(src['date_map_url'], headers=UA, timeout=30)
+            dm = {}
+            for b in re.findall(r'<url>(.*?)</url>', sr.text, re.S):
+                lo = re.search(r'<loc>([^<]+)</loc>', b)
+                lm = re.search(r'<lastmod>([^<]+)</lastmod>', b)
+                if lo and lm and src.get('list_path', '') in lo.group(1):
+                    dm[lo.group(1).rstrip('/').split('/')[-1]] = lm.group(1)[:10]
+        except Exception as e:
+            print('BACKFILL_SKIP', src['key'], type(e).__name__, flush=True)
+            continue
+        fixed = 0
+        for a in data['articles']:
+            if a.get('source') != src['key'] or a.get('date'):
+                continue
+            slug = (a.get('url') or '').rstrip('/').split('/')[-1]
+            if slug in dm:
+                a['date'] = dm[slug]
+                fixed += 1
+        if fixed:
+            print('BACKFILL_DATE', src['key'], fixed, flush=True)
+
     added = 0
     for src in SOURCES:
         if src.get('scrape'):
